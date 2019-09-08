@@ -158,6 +158,15 @@ def mixup_data(images, labels, alpha=args.mixup):
     return mixed_images, alt_labels, lambd
 
 
+# def mixup_data(images, labels, alpha=args.mixup):
+#     lambd = np.random.beta(alpha, alpha)
+#     lambd = max(lambd, 1 - lambd)
+#     permutation = torch.randperm(labels.shape[0]).cuda()
+#     mixed_images = lambd * images + (1 - lambd) * images[permutation, :]
+#     alt_labels = labels[permutation]
+#     return mixed_images, alt_labels, lambd
+
+
 def qwk(logits, labels, num_classes=5, epsilon=1e-10):
     probas = torch.nn.functional.softmax(logits, 0).float()
     labels = torch.nn.functional.one_hot(labels, num_classes).float()
@@ -178,6 +187,10 @@ def qwk(logits, labels, num_classes=5, epsilon=1e-10):
         hist_rater_b.view(1, num_classes)
     ) / labels.shape[0]).sum()
     return nom / (denom + epsilon)
+
+
+# def mixed_loss(logits, labels):
+#     return .5 * qwk(logits, labels) + .5 * torch.nn.functional.cross_entropy(logits, labels)
 
 
 augment_transform = Compose([
@@ -295,16 +308,16 @@ class OptimizedRounder(object):
         return self.coef_['x']
 
 
-def get_model():
+def get_model(num_classes):
     if args.model == 'b3':
-        model = EfficientNet.from_pretrained('efficientnet-b3', num_classes=1)
+        model = EfficientNet.from_pretrained('efficientnet-b3', num_classes=num_classes)
     elif args.model == 'b4':
-        model = EfficientNet.from_pretrained('efficientnet-b4', num_classes=1)
+        model = EfficientNet.from_pretrained('efficientnet-b4', num_classes=num_classes)
     elif args.model == 'b5':
-        model = EfficientNet.from_pretrained('efficientnet-b5', num_classes=1)
+        model = EfficientNet.from_pretrained('efficientnet-b5', num_classes=num_classes)
     elif args.model == 'resnet':
         model = timm.create_model('ig_resnext101_32x8d', pretrained=True)
-        model.fc = torch.nn.Linear(2048, 1)
+        model.fc = torch.nn.Linear(2048, num_classes)
     return model
 
 
@@ -407,6 +420,7 @@ for fold in range(FOLDS):
 
     model.cuda()
     if TRAIN:
+        # criterion = mixed_loss
         criterion = MSELoss()
         if args.lr_scheduler == 'step':
             optimizer = Adam(model.parameters(), lr=args.lr, weight_decay=args.lr/100)
